@@ -30,7 +30,7 @@ certain failure conditions to reduce charge current or completly shut the test d
 * It can handle just over 200 amps discharge, although only 120 charge
 * Temperature probes 1 & 2 are bolted to the battery terminals along with DC connectons
 * Capacity test results will vary based on max discharge amps
-* Charging is assumed complete when average charge amps drops below 0.2A
+* Charging is assumed complete when average charge amps drops below 1.5A and consumed Ah returns to 0
 
 ## Wiring Diagram
 
@@ -70,10 +70,31 @@ Not shown:
 
 * Stored in file flows.json
 * Uses Virtual Switch to provide status readout and settings on Cerbo Display
-* Auto On/Off will allow test to cycle infinitely or stop after charge complete
-* Max current settings for charge/dischage causes auto adjust of Grid setpoint Watts
-* Normally, the Grid Watts should not be changed manually unless Auto is OFF
+* A Mode dropdown selects the test state; the Grid setpoint is engine-controlled only
+* Max current settings for charge/discharge cause auto adjust of Grid setpoint Watts (constant current)
 * Nearly all logic is in TestEngine function
-* Email of charge/discharge status & results can be changed or disabled
+* Email of status is sent on every mode change; results included on charge/discharge completion
 * Note: the program currently has some math assumptions for 12v
+
+### Test Modes
+
+* IDLE - holds Grid setpoint at 200W for a trickle charge
+* CHARGE - regulates to +Charge Amps; when full, emails the result and switches to DISCHARGE
+* DISCHARGE - regulates to -Discharge Amps; when empty (11.8V floor), emails the capacity result and switches to CHARGE
+* STOP - charges to full like CHARGE, then emails the result and switches to IDLE
+* FAIL - entered automatically when a terminal temperature exceeds 50C; can also be selected manually as an abort. Holds a 100W trickle to keep the battery topped off (0W while a terminal is over the temperature limit)
+
+CHARGE and DISCHARGE alternate until 10 discharge cycles have completed, then the
+test proceeds to STOP (recharge to full, then IDLE). The cycle count is included in
+each discharge result email and resets when a test ends (entering IDLE or FAIL).
+A discharge yielding less than 5 Ah is treated as a FAIL and stops the test.
+STOP, IDLE, or FAIL can also be selected at any time to end the test early.
+Every mode transition (automatic or user-selected) sends an email with the status to that point.
+
+After a Node-RED restart or redeploy, the mode is presumed from the persisted Grid
+setpoint so a test in progress resumes: negative = DISCHARGE, positive = CHARGE,
+exactly 200W = IDLE, exactly 100W (or 0W) = FAIL. A STOP in progress resumes as
+CHARGE. The presumed
+mode is pushed back to the display dropdown, and for 30 seconds after resume any
+stale dropdown value is overridden rather than obeyed.
  
